@@ -13,7 +13,7 @@ except:
 
 setup(
     name = 'isobar',
-    version = '0.0.1',
+    version = '0.0.2-enigmacurry',
     description = 'A Python library to express and manipulate musical patterns',
     long_description = long_description,
     author = 'Daniel Jones',
