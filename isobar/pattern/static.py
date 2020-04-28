@@ -4,8 +4,6 @@ import threading
 import inspect
 import math
 
-import pythonosc
-
 class PStaticViaOSC (Pattern):
     listening = False
     
