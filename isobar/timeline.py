@@ -35,6 +35,8 @@ class Timeline(object):
         self.clock = None
         self.clock_source = None
         self.thread = None
+        self.started = False
+        self.finished = False
         self.stop_when_done = True
 
         self.events = []
@@ -50,7 +52,7 @@ class Timeline(object):
             # Create internal clock for native timekeeping.
             #------------------------------------------------------------------------
             self.clock = Clock(60.0 / (clock * TICKS_PER_BEAT))
-    
+
     @property
     def bpm(self):
         """ Returns the tempo of this timeline's clock, or None if an external
@@ -155,6 +157,10 @@ class Timeline(object):
     def reset(self):
         """ Reset our timeline to t = 0. """
         self.beats = 0.0
+        self.started = self.finished = False
+        for dev in self.devices:
+            for ch in range(16):
+                dev.all_notes_off(ch)
         for channel in self.channels:
             channel.reset()
 
@@ -167,7 +173,7 @@ class Timeline(object):
         By default, attempts to run as a high-priority thread for more
         accurate timing (though requires being run as root to re-nice the
         process.)
-        
+
         If stop_when_done is set, returns when no channels are currently
         scheduled; otherwise, keeps running indefinitely. """
         log.info("Timeline: Running")
@@ -187,6 +193,7 @@ class Timeline(object):
             # Start the clock. This might internal (eg a Clock object, running on
             # an independent thread), or external (eg a MIDI clock).
             #------------------------------------------------------------------------
+            self.started = True
             if self.has_external_clock:
                 self.clock_source.run()
             else:
@@ -196,6 +203,7 @@ class Timeline(object):
             #------------------------------------------------------------------------
             # This will be hit if every Pattern in a timeline is exhausted.
             #------------------------------------------------------------------------
+            self.finished = True
             log.info("Timeline: Finished")
 
         except Exception as e:
@@ -218,6 +226,12 @@ class Timeline(object):
     def add_output(self, device):
         """ Append a new output device to our output list. """
         self.devices.append(device)
+
+    def stop(self):
+        for d in self.devices:
+            d.all_notes_off()
+        self.clock.stop()
+        self.reset()
 
     @property
     def default_output(self):
@@ -531,11 +545,13 @@ class Channel:
 #----------------------------------------------------------------------
 
 class Clock:
-    def __init__(self, tick_size=(1.0 / TICKS_PER_BEAT)):
+    def __init__(self, tick_size=(1.0 / TICKS_PER_BEAT), max_beats=None):
         self.tick_size_orig = tick_size
         self.tick_size = tick_size
         self.warpers = []
         self.accelerate = 1.0
+        self.max_beats = max_beats
+        self.__stop = False
 
     @property
     def bpm(self):
@@ -543,10 +559,12 @@ class Clock:
 
     def run(self, timeline):
         clock0 = clock1 = time.time() * self.accelerate
+        self.__stop = False
+        self.beats = 0
         try:
             #------------------------------------------------------------------------
             # allow a tick to elapse before we call tick() for the first time
-            # to keep Warp patterns in sync  
+            # to keep Warp patterns in sync
             #------------------------------------------------------------------------
             while True:
                 if clock1 - clock0 >= self.tick_size:
@@ -554,6 +572,11 @@ class Clock:
                     timeline.tick()
                     clock0 += self.tick_size
                     self.tick_size = self.tick_size_orig
+
+                    self.beats += self.tick_size * 2 ## why multiply by 2??
+                    if self.__stop or (self.max_beats and self.beats > self.max_beats):
+                        raise StopIteration
+
                     for warper in self.warpers:
                         warp = next(warper)
                         #------------------------------------------------------------------------
@@ -568,6 +591,9 @@ class Clock:
         except KeyboardInterrupt:
             print("interrupt caught, exiting")
             return
+
+    def stop(self):
+        self.__stop = True
 
     def warp(self, warper):
         self.warpers.append(warper)

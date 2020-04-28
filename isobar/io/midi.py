@@ -60,8 +60,14 @@ class MidiIn:
         message = self.midi.get_message()
         if not message:
             return
-
         try:
+            # Get clock
+            if message[0][0] == 0xF8:
+                return "clock"
+        except:
+            pass
+        try:
+            # Get notes
             data_type, data_note, data_vel = message[0]
 
             if (data_type & 0x90) > 0 and data_vel > 0:
@@ -77,6 +83,7 @@ class MidiIn:
 class MidiOut:
     def __init__(self, target = None):
         self.midi = rtmidi.MidiOut()
+        self.ticks = 0
 
         ports = self.midi.get_ports()
         if len(ports) == 0:
@@ -97,6 +104,7 @@ class MidiOut:
         log.info("Opened MIDI output: %s" % port_name)
 
     def tick(self, tick_length):
+        self.ticks += 1
         pass
 
     def note_on(self, note = 60, velocity = 64, channel = 0):
@@ -108,7 +116,7 @@ class MidiOut:
         self.midi.send_message([ 0x80 + channel, int(note), 0 ])
 
     def all_notes_off(self, channel = 0):
-        log.debug("[midi] All notes off (channel = %d)" % (channel))
+        log.info("[midi] All notes off (channel = %d)" % (channel))
         for n in range(128):
             self.note_off(n, channel)
 
