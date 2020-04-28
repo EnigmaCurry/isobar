@@ -126,8 +126,8 @@ class MidiFileOut:
     EC: Rewritten using mido
     """
 
-    def __init__(self, filename = "score.mid"):
-        self.filename = filename
+    def __init__(self, file):
+        self.file = file
         self.score = mido.MidiFile(ticks_per_beat=TICKS_PER_BEAT)
         self.tracks = {} # channel->track
         self.time = 0
@@ -170,7 +170,7 @@ class MidiFileOut:
             self.note_off(n, channel)
 
     def write(self):
-        self.score.save(self.filename)
+        self.score.save(file=self.file)
 
 class PatternWriterMIDI:
     """ Writes a pattern to a MIDI file.
